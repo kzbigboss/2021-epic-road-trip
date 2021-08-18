@@ -60,7 +60,7 @@ Resources:
       ExtendedS3DestinationConfiguration:
         BucketARN: !GetAtt DataLakeStorageTeslaFi.Arn
         BufferingHints:
-          IntervalInSeconds: 60
+          IntervalInSeconds: 900
         CompressionFormat: GZIP
         RoleARN: !GetAtt IAMRoleProject.Arn
         Prefix: !Ref TeslaFiDataDeliveryPrefix
@@ -96,8 +96,8 @@ Resources:
   EventTriggerGetPutTeslaFiData:
     Type: AWS::Events::Rule
     Properties:
-      ScheduleExpression: "cron(* * * * ? *)"
-      State: "DISABLED"
+      ScheduleExpression: "rate(1 minute)"
+      State: "ENABLED"
       Targets:
         - Arn: !Ref GetDataStateMachine
           Id: !GetAtt GetDataStateMachine.Name
