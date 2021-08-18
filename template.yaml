@@ -1,0 +1,104 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 2021-epic-road-trip
+
+Parameters:
+  TeslaFiDataStreamName:
+    Type: String
+    Default: "teslafi-stream"
+  TeslaFiDataDeliveryPrefix:
+    Type: String
+    Default: "teslafi/"
+
+Resources:
+  IAMRoleProject:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+                - firehose.amazonaws.com
+                - states.amazonaws.com
+                - events.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+
+  LambdaGetPutTeslaFiData:
+    Type: AWS::Serverless::Function
+    Properties:
+      Role: !GetAtt IAMRoleProject.Arn
+      CodeUri: get_put_teslafi_data/
+      Handler: app.lambda_handler
+      Runtime: python3.8
+      Timeout: 20
+      Environment:
+        Variables:
+          teslafidatastream: !Ref TeslaFiDataStreamName
+
+  DataStreamTeslaFi:
+    Type: AWS::Kinesis::Stream
+    Properties:
+      Name: !Ref TeslaFiDataStreamName
+      ShardCount: 1
+
+  DataLakeStorageTeslaFi:
+    Type: AWS::S3::Bucket
+
+  DataDeliveryTeslaFi:
+    Type: AWS::KinesisFirehose::DeliveryStream
+    Properties:
+      DeliveryStreamType: "KinesisStreamAsSource"
+      KinesisStreamSourceConfiguration:
+        KinesisStreamARN: !GetAtt DataStreamTeslaFi.Arn
+        RoleARN: !GetAtt IAMRoleProject.Arn
+      ExtendedS3DestinationConfiguration:
+        BucketARN: !GetAtt DataLakeStorageTeslaFi.Arn
+        BufferingHints:
+          IntervalInSeconds: 60
+        CompressionFormat: GZIP
+        RoleARN: !GetAtt IAMRoleProject.Arn
+        Prefix: !Ref TeslaFiDataDeliveryPrefix
+
+  GetDataStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Role: !GetAtt IAMRoleProject.Arn
+      Definition:
+        StartAt: GetPutTeslaFiData1
+        States:
+          GetPutTeslaFiData1:
+            Type: Task
+            Resource: !GetAtt LambdaGetPutTeslaFiData.Arn
+            Next: Wait20Seconds1
+          GetPutTeslaFiData2:
+            Type: Task
+            Resource: !GetAtt LambdaGetPutTeslaFiData.Arn
+            Next: Wait20Seconds2
+          GetPutTeslaFiData3:
+            Type: Task
+            Resource: !GetAtt LambdaGetPutTeslaFiData.Arn
+            End: true
+          Wait20Seconds1:
+            Type: Wait
+            Seconds: 20
+            Next: GetPutTeslaFiData2
+          Wait20Seconds2:
+            Type: Wait
+            Seconds: 20
+            Next: GetPutTeslaFiData3
+
+  EventTriggerGetPutTeslaFiData:
+    Type: AWS::Events::Rule
+    Properties:
+      ScheduleExpression: "cron(* * * * ? *)"
+      State: "DISABLED"
+      Targets:
+        - Arn: !Ref GetDataStateMachine
+          Id: !GetAtt GetDataStateMachine.Name
+          RoleArn: !GetAtt IAMRoleProject.Arn
