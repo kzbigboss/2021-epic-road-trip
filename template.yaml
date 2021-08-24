@@ -102,3 +102,37 @@ Resources:
         - Arn: !Ref GetDataStateMachine
           Id: !GetAtt GetDataStateMachine.Name
           RoleArn: !GetAtt IAMRoleProject.Arn
+
+  DatabaseRoadTripAnalytics:
+    Type: AWS::Glue::Database
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput:
+        Name: "roadtrips"
+
+  TableStokeQuoteLandingRaw:
+    Type: AWS::Glue::Table
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseName: !Ref DatabaseRoadTripAnalytics
+      TableInput:
+        Name: "teslafi"
+        TableType: "EXTERNAL_TABLE"
+        StorageDescriptor:
+          InputFormat: "org.apache.hadoop.mapred.TextInputFormat"
+          OutputFormat: "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
+          SerdeInfo:
+            SerializationLibrary: "org.openx.data.jsonserde.JsonSerDe"
+          Location:
+            !Sub "s3://${DataLakeStorageTeslaFi}/${TeslaFiDataDeliveryPrefix}"
+          Columns:
+          - Name: data_id
+            Type: string
+          - Name: Date
+            Type: string
+          - Name: driveNumber
+            Type: string
+          - Name: latitude
+            Type: string
+          - Name: longitude
+            Type: string
