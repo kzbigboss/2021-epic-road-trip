@@ -136,3 +136,7 @@ Resources:
             Type: string
           - Name: longitude
             Type: string
+          - Name: odometer
+            Type: double
+          - Name: chargeNumber
+            Type: string
